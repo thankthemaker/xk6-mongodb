@@ -3,8 +3,10 @@ package xk6_mongo
 import (
 	"context"
 	"log"
+	"crypto/rand"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
@@ -14,7 +16,7 @@ import (
 // Register the extension on module initialization, available to
 // import from JS as "k6/x/mongo".
 func init() {
-	k6modules.Register("k6/x/mongo", new(Mongo))
+	k6modules.Register("k6/x/mongo", new (Mongo))
 }
 
 // Mongo is the k6 extension for a Mongo client.
@@ -28,6 +30,16 @@ type Client struct {
 type UpsertOneModel struct {
 	Query  interface{} `json:"query"`
 	Update interface{} `json:"update"`
+}
+
+// GenerateUUID creates a new UUID in binary format
+func (*Mongo) GenerateUuid() (primitive.Binary, error) {
+	uuid := make([]byte, 16)
+	_, err := rand.Read(uuid)
+	if err != nil {
+		return primitive.Binary{}, err
+	}
+	return primitive.Binary{Subtype: 4, Data: uuid}, nil
 }
 
 // NewClient represents the Client constructor (i.e. `new mongo.Client()`) and
