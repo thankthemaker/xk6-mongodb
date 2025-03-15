@@ -1,9 +1,14 @@
 package xk6_mongo
 
 import (
+	"fmt"
 	"context"
 	"log"
 	"crypto/rand"
+	"encoding/hex"
+	"regexp"
+	"strings"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -16,11 +21,12 @@ import (
 // Register the extension on module initialization, available to
 // import from JS as "k6/x/mongo".
 func init() {
-	k6modules.Register("k6/x/mongo", new (Mongo))
+	k6modules.Register("k6/x/mongo", new (Mongo) )
 }
 
 // Mongo is the k6 extension for a Mongo client.
-type Mongo struct{}
+type Mongo struct{
+}
 
 // Client is the Mongo client wrapper.
 type Client struct {
@@ -40,6 +46,42 @@ func (*Mongo) GenerateUuid() (primitive.Binary, error) {
 		return primitive.Binary{}, err
 	}
 	return primitive.Binary{Subtype: 4, Data: uuid}, nil
+}
+
+// Creates a UUID in binary format from String
+func (*Mongo) ConvertStringToUuid(uuid string) (primitive.Binary, error) {
+	// UUID with dashes: 8-4-4-4-12 (36 Chars), or without dashes: (32 Chars)
+	re := regexp.MustCompile(`^([0-9a-fA-F]{8})-?([0-9a-fA-F]{4})-?([0-9a-fA-F]{4})-?([0-9a-fA-F]{4})-?([0-9a-fA-F]{12})$`)
+	matches := re.FindStringSubmatch(uuid)
+	if matches == nil {
+		return primitive.Binary{}, fmt.Errorf("invalid UUID format: %s", uuid)
+	}
+
+	// remove dashes
+	cleanUUID := strings.Join(matches[1:], "")
+
+	// convert Hex-String in bytes
+	uuidBytes, err := hex.DecodeString(cleanUUID)
+	if err != nil {
+		return primitive.Binary{}, fmt.Errorf("error decoding UUID string: %v", err)
+	}
+
+	// create MongoDB binary of subtype4
+	return primitive.Binary{Subtype: 4, Data: uuidBytes}, nil
+}
+
+// GenerateIsoDate creates an ISODate type
+func (*Mongo) GenerateIsoDate() time.Time {
+	return time.Now().UTC()
+}
+
+// ParseISODateString converds a ISO8601-String to MongoDBs ISODate 
+func (*Mongo) ConvertStringToIsoDate(date string) (time.Time, error) {
+	parsedTime, err := time.Parse(time.RFC3339, date)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return parsedTime, nil
 }
 
 // NewClient represents the Client constructor (i.e. `new mongo.Client()`) and
