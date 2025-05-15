@@ -70,6 +70,31 @@ func (*Mongo) ConvertStringToUuid(uuid string) (primitive.Binary, error) {
 	return primitive.Binary{Subtype: 4, Data: uuidBytes}, nil
 }
 
+// Converts a binary MongoDB UUID (Subtype 4) back to UUID string format
+func (*Mongo) ConvertUuidToString(bin primitive.Binary) (string, error) {
+	if bin.Subtype != 4 {
+		return "", fmt.Errorf("unsupported binary subtype: %d", bin.Subtype)
+	}
+	if len(bin.Data) != 16 {
+		return "", fmt.Errorf("invalid UUID binary length: expected 16 bytes, got %d", len(bin.Data))
+	}
+
+	// In hex, 16 bytes = 32 hex characters
+	hexStr := hex.EncodeToString(bin.Data)
+
+	// Format with dashes: 8-4-4-4-12
+	formatted := fmt.Sprintf("%s-%s-%s-%s-%s",
+		hexStr[0:8],
+		hexStr[8:12],
+		hexStr[12:16],
+		hexStr[16:20],
+		hexStr[20:32],
+	)
+
+	return formatted, nil
+}
+
+
 // GenerateIsoDate creates an ISODate type
 func (*Mongo) GenerateIsoDate() time.Time {
 	return time.Now().UTC()
