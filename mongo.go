@@ -1,12 +1,18 @@
 package xk6_mongo
 
 import (
+	"fmt"
 	"context"
 	"fmt"
 	"log"
+	"crypto/rand"
+	"encoding/hex"
+	"regexp"
 	"strings"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
@@ -16,11 +22,12 @@ import (
 // Register the extension on module initialization, available to
 // import from JS as "k6/x/mongo".
 func init() {
-	k6modules.Register("k6/x/mongo", new(Mongo))
+	k6modules.Register("k6/x/mongo", new (Mongo) )
 }
 
 // Mongo is the k6 extension for a Mongo client.
-type Mongo struct{}
+type Mongo struct{
+}
 
 // Client is the Mongo client wrapper.
 type Client struct {
@@ -30,6 +37,77 @@ type Client struct {
 type UpsertOneModel struct {
 	Query  any `json:"query"`
 	Update any `json:"update"`
+}
+
+// GenerateUUID creates a new UUID in binary format
+func (*Mongo) GenerateUuid() (primitive.Binary, error) {
+	uuid := make([]byte, 16)
+	_, err := rand.Read(uuid)
+	if err != nil {
+		return primitive.Binary{}, err
+	}
+	return primitive.Binary{Subtype: 4, Data: uuid}, nil
+}
+
+// Creates a UUID in binary format from String
+func (*Mongo) ConvertStringToUuid(uuid string) (primitive.Binary, error) {
+	// UUID with dashes: 8-4-4-4-12 (36 Chars), or without dashes: (32 Chars)
+	re := regexp.MustCompile(`^([0-9a-fA-F]{8})-?([0-9a-fA-F]{4})-?([0-9a-fA-F]{4})-?([0-9a-fA-F]{4})-?([0-9a-fA-F]{12})$`)
+	matches := re.FindStringSubmatch(uuid)
+	if matches == nil {
+		return primitive.Binary{}, fmt.Errorf("invalid UUID format: %s", uuid)
+	}
+
+	// remove dashes
+	cleanUUID := strings.Join(matches[1:], "")
+
+	// convert Hex-String in bytes
+	uuidBytes, err := hex.DecodeString(cleanUUID)
+	if err != nil {
+		return primitive.Binary{}, fmt.Errorf("error decoding UUID string: %v", err)
+	}
+
+	// create MongoDB binary of subtype4
+	return primitive.Binary{Subtype: 4, Data: uuidBytes}, nil
+}
+
+// Converts a binary MongoDB UUID (Subtype 4) back to UUID string format
+func (*Mongo) ConvertUuidToString(bin primitive.Binary) (string, error) {
+	if bin.Subtype != 4 {
+		return "", fmt.Errorf("unsupported binary subtype: %d", bin.Subtype)
+	}
+	if len(bin.Data) != 16 {
+		return "", fmt.Errorf("invalid UUID binary length: expected 16 bytes, got %d", len(bin.Data))
+	}
+
+	// In hex, 16 bytes = 32 hex characters
+	hexStr := hex.EncodeToString(bin.Data)
+
+	// Format with dashes: 8-4-4-4-12
+	formatted := fmt.Sprintf("%s-%s-%s-%s-%s",
+		hexStr[0:8],
+		hexStr[8:12],
+		hexStr[12:16],
+		hexStr[16:20],
+		hexStr[20:32],
+	)
+
+	return formatted, nil
+}
+
+
+// GenerateIsoDate creates an ISODate type
+func (*Mongo) GenerateIsoDate() time.Time {
+	return time.Now().UTC()
+}
+
+// ParseISODateString converds a ISO8601-String to MongoDBs ISODate 
+func (*Mongo) ConvertStringToIsoDate(date string) (time.Time, error) {
+	parsedTime, err := time.Parse(time.RFC3339, date)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return parsedTime, nil
 }
 
 // NewClient represents the Client constructor (i.e. `new mongo.Client()`) and

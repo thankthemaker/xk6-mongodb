@@ -1,4 +1,4 @@
-module github.com/GhMartingit/xk6-mongo
+module github.com/thankthemaker/xk6-mongodb
 
 go 1.24.0
 
