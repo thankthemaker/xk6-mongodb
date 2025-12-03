@@ -3,7 +3,6 @@ package xk6_mongo
 import (
 	"fmt"
 	"context"
-	"fmt"
 	"log"
 	"crypto/rand"
 	"encoding/hex"
