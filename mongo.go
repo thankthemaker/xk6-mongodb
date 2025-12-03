@@ -1,6 +1,7 @@
 package xk6_mongo
 
 import (
+	"fmt"
 	"context"
 	"log"
 	"crypto/rand"
